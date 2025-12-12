@@ -342,7 +342,7 @@ class TranscriberApp:
 
     # ---------- Worker & queue ----------
 
-        def worker_transcribe_all(self):
+    def worker_transcribe_all(self):
         try:
             start_time = time.time()
             self.queue.put(("status", "Loading model (small, int8 on CPU)..."))
