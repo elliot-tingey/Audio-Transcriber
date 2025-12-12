@@ -110,22 +110,40 @@ class TranscriberApp:
             wraplength=620,
             justify="center",
         )
-        self.info_label.pack(**padding)
+        self.info_label.pack(padx=10, pady=6)
 
-        self.progress_label = ttk.Label(
+               # --- File progress (percent within current file) ---
+        self.file_progress_label = ttk.Label(
             self.root,
-            text="Progress: 0% (0 / 0)",  # percent is per-file; X / N = files done
+            text="File progress: 0%",
         )
-        self.progress_label.pack(**padding)
+        self.info_label.pack(padx=10, pady=6)
 
-        self.progress_bar = ttk.Progressbar(
+        self.file_progress_bar = ttk.Progressbar(
             self.root,
             orient="horizontal",
             length=620,
             mode="determinate",
             maximum=100,
         )
-        self.progress_bar.pack(**padding)
+        self.info_label.pack(padx=10, pady=6)
+
+        # --- Overall progress (files done out of total) ---
+        self.overall_progress_label = ttk.Label(
+            self.root,
+            text="Overall: 0 / 0 files",
+        )
+        self.info_label.pack(padx=10, pady=6)
+
+        self.overall_progress_bar = ttk.Progressbar(
+            self.root,
+            orient="horizontal",
+            length=620,
+            mode="determinate",
+            maximum=1,   # will be set when a run starts
+        )
+        self.info_label.pack(padx=10, pady=6)
+
 
         self.current_text_label = ttk.Label(
             self.root,
@@ -133,7 +151,7 @@ class TranscriberApp:
             wraplength=620,
             justify="center",
         )
-        self.current_text_label.pack(**padding)
+        self.info_label.pack(padx=10, pady=6)
 
         self.current_file_label = ttk.Label(
             self.root,
@@ -141,7 +159,7 @@ class TranscriberApp:
             wraplength=620,
             justify="center",
         )
-        self.current_file_label.pack(**padding)
+        self.info_label.pack(padx=10, pady=6)
 
         # Selected files list
         files_frame = ttk.LabelFrame(self.root, text="Selected files")
@@ -320,10 +338,15 @@ class TranscriberApp:
         self.file_listbox.delete(0, tk.END)
 
         # Reset progress
-        self.progress_bar["value"] = 0
-        self.progress_label.config(
-            text=f"Progress: 0% ({self.files_done} / {self.total_files})"
+        self.file_progress_bar["value"] = 0
+        self.file_progress_label.config(text="File progress: 0%")
+
+        self.overall_progress_bar["maximum"] = max(self.total_files, 1)
+        self.overall_progress_bar["value"] = 0
+        self.overall_progress_label.config(
+            text=f"Overall: {self.files_done} / {self.total_files} files"
         )
+
         self.current_file_label.config(text="Current file: Preparing...")
         self.current_text_label.config(text="Current text: (none)")
 
@@ -363,7 +386,7 @@ class TranscriberApp:
                 segments, info = model.transcribe(
                     str(audio_path),
                     beam_size=1,        # greedy decoding, fastest
-                    vad_filter=False,   # no extra VAD overhead
+                    vad_filter=True,   # no extra VAD overhead
                     word_timestamps=False,
                 )
 
@@ -387,7 +410,7 @@ class TranscriberApp:
 
                 # Timestamp when transcription finished
                 timestamp_str = datetime.now().strftime("%H%M%S")
-                out_name = f"Call{idx}_{timestamp_str}.text"
+                out_name = f"Call{idx}_{timestamp_str}.txt"
                 out_path = self.output_dir / out_name
 
                 self.output_dir.mkdir(parents=True, exist_ok=True)
@@ -437,10 +460,14 @@ class TranscriberApp:
                 text=f"Current file: ({idx} / {total}) {filename}"
             )
             self.current_text_label.config(text="Current text: (none)")
-            self.progress_bar["value"] = 0
-            self.progress_label.config(
-                text=f"Progress: 0% ({self.files_done} / {self.total_files})"
+            self.file_progress_bar["value"] = 0
+            self.file_progress_label.config(text="File progress: 0%")
+
+            self.overall_progress_label.config(
+                text=f"Overall: {self.files_done} / {self.total_files} files"
             )
+            self.overall_progress_bar["value"] = self.files_done
+
 
         elif msg_type == "segment":
             _, text, percent = msg
@@ -449,10 +476,9 @@ class TranscriberApp:
                 text=f"Current text: {text}"
             )
             # Percent is per-file; X / N is files done
-            self.progress_bar["value"] = percent
-            self.progress_label.config(
-                text=f"Progress: {percent}% ({self.files_done} / {self.total_files})"
-            )
+            self.file_progress_bar["value"] = percent
+            self.file_progress_label.config(text=f"File progress: {percent}%")
+
 
         elif msg_type == "file_done":
             _, idx, total, filename, out_path, file_elapsed = msg
@@ -461,10 +487,14 @@ class TranscriberApp:
             self.files_done += 1
 
             # Force progress to 100% for this file
-            self.progress_bar["value"] = 100
-            self.progress_label.config(
-                text=f"Progress: 100% ({self.files_done} / {self.total_files})"
+            self.file_progress_bar["value"] = 100
+            self.file_progress_label.config(text="File progress: 100%")
+
+            self.overall_progress_bar["value"] = self.files_done
+            self.overall_progress_label.config(
+                text=f"Overall: {self.files_done} / {self.total_files} files"
             )
+
 
             self.info_label.config(
                 text=(
